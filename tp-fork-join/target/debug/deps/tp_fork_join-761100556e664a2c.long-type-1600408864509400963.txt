@@ -1,0 +1,1 @@
+rayon::iter::FlatMap<rayon::iter::Map<rayon::iter::FlatMap<rayon::slice::Iter<'_, std::path::PathBuf>, {closure@src/main.rs:62:41: 62:47}>, {closure@src/main.rs:72:14: 72:17}>, {closure@src/main.rs:101:19: 101:24}>

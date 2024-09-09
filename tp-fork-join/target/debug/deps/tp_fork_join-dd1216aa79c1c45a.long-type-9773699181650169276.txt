@@ -1,0 +1,1 @@
+rayon::iter::Map<rayon::iter::FlatMap<rayon::slice::Iter<'_, PathBuf>, {closure@src/main.rs:62:41: 62:47}>, {closure@src/main.rs:72:14: 72:17}>
