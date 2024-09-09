@@ -1,2 +1,5 @@
 # Ignorar la carpeta deaths
 /deaths/
+
+# Ignorar la carpeta target
+/target/

@@ -75,6 +75,7 @@ fn main() -> std::io::Result<()> {
         let fields: Vec<&str> = line.split(',').collect();
         let mut counts = HashMap::new();
         let mut distances = HashMap::new();
+        let mut players = HashMap::new();
 
         if let Some(weapon) = fields.first() {
             let number_of_deaths_caused = counts.entry(weapon.to_string()).or_insert(0);
@@ -93,15 +94,22 @@ fn main() -> std::io::Result<()> {
             distances_vec.push(distance);
         }
 
-        (counts, distances)
+        if let Some(player) = fields.get(1) {
+            if player != &"" {
+                let number_of_deaths_caused = players.entry(player.to_string()).or_insert(0);
+                *number_of_deaths_caused += 1;
+            }
+        }
+
+        (counts, distances, players)
     });
 
     // Reduce todos los HashMaps a un solo HashMap, que contiene todas las claves juntas (armas)
     // y sus valores acumulados.
     // result = { "arma1": 10, "arma2": 20, ...}
     let result = mapped_iter.reduce(
-        || (HashMap::new(), HashMap::new()),
-        |(mut acc_counts, mut acc_distances), (counts, distances)| {
+        || (HashMap::new(), HashMap::new(), HashMap::new()),
+        |(mut acc_counts, mut acc_distances, mut acc_players), (counts, distances, players)| {
             counts.iter().for_each(|(k, v)| {
                 let count = acc_counts.entry(k.to_string()).or_insert(0);
                 *count += v;
@@ -114,13 +122,18 @@ fn main() -> std::io::Result<()> {
                     .extend(v);
             });
 
-            (acc_counts, acc_distances)
+            players.iter().for_each(|(k, v)| {
+                let count = acc_players.entry(k.to_string()).or_insert(0);
+                *count += v;
+            });
+
+            (acc_counts, acc_distances, acc_players)
         },
     );
 
     let duration = start.elapsed();
 
-    let (counts, distances) = result;
+    let (counts, distances, players) = result;
 
     println!("Tiempo total de lectura: {:?}", duration);
 
@@ -165,6 +178,17 @@ fn main() -> std::io::Result<()> {
     println!("Promedio de distancias para las top 10 armas:");
     for (weapon, avg_distance) in average_distances.iter() {
         println!("{}: {:.2}", weapon, avg_distance);
+    }
+
+    // Top 10 jugadores que causaron más muertes
+    let mut ordered_players: Vec<(&String, &i32)> = players.iter().collect();
+    ordered_players.sort_unstable_by_key(|&(_, count)| -count);
+    let top_10_players: Vec<(&String, &i32)> = ordered_players.iter().take(10).cloned().collect();
+
+    // Imprimir los top 10 jugadores
+    for (player, count) in top_10_players.iter() {
+        println!("---------------------------------");
+        println!("{}: {}", player, count);
     }
 
     Ok(())
