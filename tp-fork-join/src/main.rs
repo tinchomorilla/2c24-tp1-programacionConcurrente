@@ -8,6 +8,7 @@ use std::{
     time::Instant,
 };
 
+#[allow(unused_variables)]
 fn main() -> std::io::Result<()> {
     let start = Instant::now();
     // Parsear los argumentos de la línea de comandos
@@ -68,7 +69,7 @@ fn main() -> std::io::Result<()> {
     // Cada linea del csv es una muerte causada por un arma, por lo que mapeamos cada linea a un HashMap
     // Finalmente, map nos devuelve un iterador paralelo que contiene todos los HashMaps representado por:
     // key: el nombre del arma,  value: la cantidad de muertes causadas por cada arma.
-    // mapped_iter = [hashmap1 , hashmap2, hashmap3, ...]
+    // mapped_iter = [ {"arma1": 1}, {"arma2": 1}, {"arma1": 1}, {"arma3": 1}, {"arma2": 1} ]
     let mapped_iter = lines_iter.map(|l| {
         let line = l.unwrap();
         let fields: Vec<&str> = line.split(',').collect();
@@ -85,7 +86,7 @@ fn main() -> std::io::Result<()> {
     // y sus valores acumulados.
     // result = { "arma1": 10, "arma2": 20, ...}
     let result = mapped_iter.reduce(
-        || HashMap::new(),
+        HashMap::new,
         |mut acc, map| {
             map.iter().for_each(|(k, v)| {
                 let count = acc.entry(k.to_string()).or_insert(0);
@@ -101,6 +102,7 @@ fn main() -> std::io::Result<()> {
 
     let mut top_weapons: Vec<(&String, &i32)> = result.iter().collect();
     top_weapons.sort_by(|a: &(&String, &i32), b| b.1.cmp(a.1));
+
     // Calcular el total de muertes
     let total_deaths: i32 = result.values().sum();
 
