@@ -1,19 +1,22 @@
 use rayon::prelude::*;
+use serde_json::json;
 use std::{
     collections::HashMap,
     env,
     fs::{self, File},
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Write},
     path::PathBuf,
     time::Instant,
 };
+
+const EXPECTED_ARGS: usize = 4;
 
 #[allow(unused_variables)]
 fn main() -> std::io::Result<()> {
     let start = Instant::now();
     // Parsear los argumentos de la línea de comandos
     let args: Vec<String> = env::args().collect();
-    if args.len() != 4 {
+    if args.len() != EXPECTED_ARGS {
         eprintln!("Uso: cargo run <input-path> <num-threads> <output-file-name>");
         std::process::exit(1);
     }
@@ -73,123 +76,148 @@ fn main() -> std::io::Result<()> {
     let mapped_iter = lines_iter.map(|l| {
         let line = l.unwrap();
         let fields: Vec<&str> = line.split(',').collect();
-        let mut counts = HashMap::new();
-        let mut distances = HashMap::new();
-        let mut players = HashMap::new();
+        let mut player_kills = HashMap::new();
+        let mut number_of_deaths_and_distances: HashMap<String, (i32, f64, i32)> = HashMap::new();
 
         if let Some(weapon) = fields.first() {
-            let number_of_deaths_caused = counts.entry(weapon.to_string()).or_insert(0);
-            *number_of_deaths_caused += 1;
-        }
-
-        if let (Some(weapon), Some(killer_x), Some(killer_y), Some(victim_x), Some(victim_y)) = (
-            fields.first(),
-            fields.get(3).and_then(|x| x.parse::<f64>().ok()),
-            fields.get(4).and_then(|y| y.parse::<f64>().ok()),
-            fields.get(10).and_then(|x| x.parse::<f64>().ok()),
-            fields.get(11).and_then(|y| y.parse::<f64>().ok()),
-        ) {
-            let distance = ((killer_x - victim_x).powi(2) + (killer_y - victim_y).powi(2)).sqrt();
-            let distances_vec = distances.entry(weapon.to_string()).or_insert(Vec::new());
-            distances_vec.push(distance);
-        }
-
-        if let Some(player) = fields.get(1) {
-            if player != &"" {
-                let number_of_deaths_caused = players.entry(player.to_string()).or_insert(0);
-                *number_of_deaths_caused += 1;
+            let (count, distances, len) = number_of_deaths_and_distances
+                .entry(weapon.to_string())
+                .or_insert((0, 0.0, 0));
+            *count += 1;
+            if let (Some(killer_x), Some(killer_y), Some(victim_x), Some(victim_y)) = (
+                fields.get(3).and_then(|x| x.parse::<f64>().ok()),
+                fields.get(4).and_then(|y| y.parse::<f64>().ok()),
+                fields.get(10).and_then(|x| x.parse::<f64>().ok()),
+                fields.get(11).and_then(|y| y.parse::<f64>().ok()),
+            ) {
+                let distance =
+                    ((killer_x - victim_x).powi(2) + (killer_y - victim_y).powi(2)).sqrt();
+                *distances += distance;
+                *len += 1;
+            }
+            if let Some(player) = fields.get(1) {
+                if player != &"" {
+                    let player_weapons = player_kills
+                        .entry(player.to_string())
+                        .or_insert(HashMap::new());
+                    let number_of_deaths_caused =
+                        player_weapons.entry(weapon.to_string()).or_insert(0);
+                    *number_of_deaths_caused += 1;
+                }
             }
         }
 
-        (counts, distances, players)
+        (number_of_deaths_and_distances, player_kills)
     });
 
     // Reduce todos los HashMaps a un solo HashMap, que contiene todas las claves juntas (armas)
     // y sus valores acumulados.
     // result = { "arma1": 10, "arma2": 20, ...}
     let result = mapped_iter.reduce(
-        || (HashMap::new(), HashMap::new(), HashMap::new()),
-        |(mut acc_counts, mut acc_distances, mut acc_players), (counts, distances, players)| {
+        || (HashMap::new(), HashMap::new()),
+        |(mut acc_number_of_deaths_and_distances, mut acc_players_weapons),
+         (counts, player_kills)| {
             counts.iter().for_each(|(k, v)| {
-                let count = acc_counts.entry(k.to_string()).or_insert(0);
-                *count += v;
-            });
-
-            distances.iter().for_each(|(k, v)| {
-                acc_distances
+                let (acc_count, acc_distances, len) = acc_number_of_deaths_and_distances
                     .entry(k.to_string())
-                    .or_insert(Vec::new())
-                    .extend(v);
+                    .or_insert((0, 0.0, 0));
+                *acc_count += v.0;
+                *acc_distances += v.1;
+                *len += v.2;
             });
 
-            players.iter().for_each(|(k, v)| {
-                let count = acc_players.entry(k.to_string()).or_insert(0);
-                *count += v;
+            player_kills.iter().for_each(|(k, v)| {
+                let player_weapons = acc_players_weapons
+                    .entry(k.to_string())
+                    .or_insert(HashMap::new());
+                v.iter().for_each(|(weapon, count)| {
+                    let player_weapon_count = player_weapons.entry(weapon.to_string()).or_insert(0);
+                    *player_weapon_count += count;
+                });
             });
 
-            (acc_counts, acc_distances, acc_players)
+            (acc_number_of_deaths_and_distances, acc_players_weapons)
         },
     );
 
-    let duration = start.elapsed();
+    let (weapons, player_kills) = result;
 
-    let (counts, distances, players) = result;
+    let duration = start.elapsed();
 
     println!("Tiempo total de lectura: {:?}", duration);
 
-    let mut top_weapons: Vec<(&String, &i32)> = counts.iter().collect();
-    top_weapons.sort_by(|a: &(&String, &i32), b| b.1.cmp(a.1));
+    //Ordenar las armas por cantidad de muertes causadas
+    let mut weapons_vec = weapons.iter().collect::<Vec<_>>();
+    weapons_vec.sort_unstable_by_key(|&(_, (count, distances, _))| -count);
 
-    // Nombres de las 10 armas principales
-    let top_10_weapons: Vec<&String> = top_weapons
+    // Calcular las distancias para las 10 armas principales
+    let top_10_distances: HashMap<&String, f64> = weapons_vec
         .iter()
         .take(10)
-        .map(|(weapon, _)| *weapon)
-        .collect();
+        .map(|(k, (count, distances, len))| (*k, distances / *len as f64))
+        .collect::<HashMap<_, _>>();
 
-    // Filtrar las distancias para las 10 armas principales
-    let top_10_distances: HashMap<String, Vec<f64>> = distances
-        .iter()
-        .filter(|(k, _)| top_10_weapons.contains(k))
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect();
+    // Calcular el total de muertes
+    let total_deaths_caused_by_weapons: i32 = weapons.values().map(|(count, _, _)| *count).sum();
 
-    // Calcular el promedio de distancias para cada arma en el top 10
-    let average_distances: HashMap<String, f64> = top_10_distances
+    //Ordenar los jugadores por cantidad de muertes causadas
+    let mut players_weapons_vec: Vec<(&String, &HashMap<String, i32>)> =
+        player_kills.iter().collect();
+    players_weapons_vec.sort_unstable_by_key(|&(_, weapons)| -weapons.values().sum::<i32>());
+    // Tomar los 10 primeros jugadores
+    let top_10_players: Vec<(&String, &HashMap<String, i32>)> =
+        players_weapons_vec.iter().take(10).cloned().collect();
+
+    let top_killers: HashMap<String, serde_json::Value> = top_10_players
         .iter()
-        .map(|(k, v)| {
-            let sum: f64 = v.iter().sum();
-            let count = v.len() as f64;
-            (k.clone(), sum / count)
+        .map(|(player, weapons)| {
+            let total_deaths_caused_by_player: i32 = weapons.values().sum();
+            let mut weapons_vec: Vec<(&String, &i32)> = weapons.iter().collect();
+            weapons_vec.sort_unstable_by_key(|&(_, &count)| -count);
+            let top_3_weapons = weapons_vec
+                .iter()
+                .take(3)
+                .map(|(weapon, &count)| {
+                    let percentage = (count as f64 / total_deaths_caused_by_player as f64) * 100.0;
+                    let rounded_percentage = (percentage * 100.0).round() / 100.0;
+                    (weapon, rounded_percentage)
+                })
+                .collect::<HashMap<_, _>>();
+            (
+                (*player).clone(),
+                json!({
+                    "deaths": total_deaths_caused_by_player,
+                    "weapons_percentage": top_3_weapons
+                }),
+            )
         })
         .collect();
 
-    // Calcular el total de muertes
-    let total_deaths: i32 = counts.values().sum();
+    let top_weapons: HashMap<String, serde_json::Value> = weapons_vec
+        .iter()
+        .take(10)
+        .map(|(weapon, (count, distances, len))| {
+            let percentage = (*count as f64 / total_deaths_caused_by_weapons as f64) * 100.0;
+            let rounded_percentage = (percentage * 100.0).round() / 100.0;
+            let avg_distance = (distances / *len as f64 * 100.0).round() / 100.0;
+            (
+                (*weapon).clone(),
+                json!({
+                    "deaths_percentage": rounded_percentage,
+                    "average_distance": avg_distance
+                }),
+            )
+        })
+        .collect();
 
-    println!("Top 10 armas que causaron más muertes:");
-    for (weapon, count) in top_weapons.iter().take(10) {
-        let percentage = (**count as f64 / total_deaths as f64) * 100.0;
-        let rounded_percentage = (percentage * 100.0).round() / 100.0; // Redondear a dos decimales
-        println!("{}: {} ({:.2}%)", weapon, count, rounded_percentage);
-    }
+    let output = json!({
+        "padron": 108091,
+        "top_killers": top_killers,
+        "top_weapons": top_weapons
+    });
 
-    // Imprimir las distancias promedio para las 10 armas principales
-    println!("Promedio de distancias para las top 10 armas:");
-    for (weapon, avg_distance) in average_distances.iter() {
-        println!("{}: {:.2}", weapon, avg_distance);
-    }
-
-    // Top 10 jugadores que causaron más muertes
-    let mut ordered_players: Vec<(&String, &i32)> = players.iter().collect();
-    ordered_players.sort_unstable_by_key(|&(_, count)| -count);
-    let top_10_players: Vec<(&String, &i32)> = ordered_players.iter().take(10).cloned().collect();
-
-    // Imprimir los top 10 jugadores
-    for (player, count) in top_10_players.iter() {
-        println!("---------------------------------");
-        println!("{}: {}", player, count);
-    }
+    let mut file = File::create(output_file_name)?;
+    file.write_all(serde_json::to_string_pretty(&output)?.as_bytes())?;
 
     Ok(())
 }
