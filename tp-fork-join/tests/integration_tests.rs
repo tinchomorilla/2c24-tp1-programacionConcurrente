@@ -2,67 +2,55 @@ use assert_json_diff::assert_json_eq;
 use serde_json::Value;
 use std::fs::File;
 use std::io::Read;
-use std::path::Path;
 use std::process::Command;
 
 #[test]
-fn test_output_matches_expected() {
-    let generated_file_path = "/home/tincho/Documents/Facultad/Concurrentes/2024-2c-tp1-tinchhoo/tp-fork-join/output.json";
+fn test_output_with_expected_json() {
+    // Definir el path del archivo JSON esperado
     let expected_file_path =
-        "/home/tincho/Documents/Facultad/Concurrentes/2024-2c-tp1-tinchhoo/tp-fork-join";
+        "/home/tincho/Documents/Facultad/Concurrentes/2024-2c-tp1-tinchhoo/tp-fork-join/expected_output.json";
 
+    // Definir los argumentos para ejecutar el programa
     let input_path =
         "/home/tincho/Documents/Facultad/Concurrentes/2024-2c-tp1-tinchhoo/tp-fork-join/deaths";
-    let num_threads = "3";
-    let output_file_name = generated_file_path;
+    let num_threads = "2";
+    let output_file_path = "/home/tincho/Documents/Facultad/Concurrentes/2024-2c-tp1-tinchhoo/tp-fork-join/output.json";
 
-    // Verificar que las rutas existen
-    assert!(
-        Path::new(input_path).exists(),
-        "El directorio de entrada no existe: {}",
-        input_path
-    );
-    assert!(
-        Path::new(expected_file_path).exists(),
-        "El archivo esperado no existe: {}",
-        expected_file_path
-    );
-
-    // Ejecutar el programa para generar el archivo
+    // Ejecutar el programa para generar el archivo JSON
     let _output = Command::new("cargo")
         .arg("run")
         .arg("--release")
+        .arg("--")
         .arg(input_path)
         .arg(num_threads)
-        .arg(output_file_name)
+        .arg(output_file_path)
         .output()
-        .expect("Failed to execute command");
+        .expect("Error al ejecutar el programa");
 
-    // Leer el archivo generado
+    // Leer el archivo JSON generado por el programa
     let mut generated_file =
-        File::open(generated_file_path).expect("Unable to open generated file");
+        File::open(output_file_path).expect("Error al abrir el archivo generado");
     let mut generated_content = String::new();
     generated_file
         .read_to_string(&mut generated_content)
-        .expect("Unable to read generated file");
+        .expect("Error al leer el archivo generado");
 
-    // Leer el archivo esperado
-    let mut expected_file = File::open(expected_file_path).expect("Unable to open expected file");
+    // Leer el archivo JSON esperado
+    let mut expected_file =
+        File::open(expected_file_path).expect("Error al abrir el archivo esperado");
     let mut expected_content = String::new();
     expected_file
         .read_to_string(&mut expected_content)
-        .expect("Unable to read expected file");
+        .expect("Error al leer el archivo esperado");
 
-    // Deserializar el contenido JSON
+    // Deserializar el contenido JSON generado por el programa
     let generated_json: Value =
-        serde_json::from_str(&generated_content).expect("Unable to parse generated JSON");
+        serde_json::from_str(&generated_content).expect("Error al parsear el JSON generado");
+
+    // Deserializar el contenido JSON esperado
     let expected_json: Value =
-        serde_json::from_str(&expected_content).expect("Unable to parse expected JSON");
+        serde_json::from_str(&expected_content).expect("Error al parsear el JSON esperado");
 
-    // Imprimir ambos JSON para comparación
-    println!("Generated JSON: {}", generated_json);
-    println!("Expected JSON: {}", expected_json);
-
-    // Comparar los JSON ignorando el orden de los campos
+    // Comparar ambos JSON sin importar el orden de los campos
     assert_json_eq!(generated_json, expected_json);
 }
