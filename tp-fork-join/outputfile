@@ -1,0 +1,127 @@
+{
+  "padron": 108091,
+  "top_killers": {
+    "#unknown": {
+      "deaths": 304804,
+      "weapons_percentage": {
+        "Down and Out": 17.8,
+        "M416": 14.24,
+        "SCAR-L": 10.95
+      }
+    },
+    "Ashbur_": {
+      "deaths": 1438,
+      "weapons_percentage": {
+        "Down and Out": 13.84,
+        "M416": 15.99,
+        "SCAR-L": 15.02
+      }
+    },
+    "GhostDL": {
+      "deaths": 1672,
+      "weapons_percentage": {
+        "Down and Out": 18.9,
+        "M416": 14.71,
+        "SCAR-L": 10.53
+      }
+    },
+    "GoAheadTry2Run": {
+      "deaths": 1381,
+      "weapons_percentage": {
+        "Down and Out": 23.39,
+        "M416": 14.12,
+        "SCAR-L": 10.64
+      }
+    },
+    "JZalan": {
+      "deaths": 2160,
+      "weapons_percentage": {
+        "Down and Out": 19.35,
+        "M416": 15.56,
+        "SCAR-L": 10.56
+      }
+    },
+    "VanThang": {
+      "deaths": 1612,
+      "weapons_percentage": {
+        "AKM": 11.41,
+        "M416": 17.37,
+        "SCAR-L": 11.35
+      }
+    },
+    "feitengdedan": {
+      "deaths": 1548,
+      "weapons_percentage": {
+        "Down and Out": 21.51,
+        "M16A4": 13.31,
+        "M416": 9.75
+      }
+    },
+    "hzxiaobin": {
+      "deaths": 2113,
+      "weapons_percentage": {
+        "AKM": 10.27,
+        "Down and Out": 20.02,
+        "M416": 11.07
+      }
+    },
+    "idzhennanqu": {
+      "deaths": 1360,
+      "weapons_percentage": {
+        "Down and Out": 17.21,
+        "M16A4": 10.96,
+        "SCAR-L": 11.1
+      }
+    },
+    "siliymaui125": {
+      "deaths": 1514,
+      "weapons_percentage": {
+        "AKM": 14.07,
+        "Down and Out": 18.96,
+        "M16A4": 15.65
+      }
+    }
+  },
+  "top_weapons": {
+    "AKM": {
+      "average_distance": 14682.77,
+      "deaths_percentage": 8.53
+    },
+    "Bluezone": {
+      "average_distance": 151482.51,
+      "deaths_percentage": 4.9
+    },
+    "Down and Out": {
+      "average_distance": 6652.58,
+      "deaths_percentage": 17.2
+    },
+    "M16A4": {
+      "average_distance": 15448.32,
+      "deaths_percentage": 9.24
+    },
+    "M416": {
+      "average_distance": 12682.73,
+      "deaths_percentage": 11.45
+    },
+    "Mini 14": {
+      "average_distance": 19130.42,
+      "deaths_percentage": 3.06
+    },
+    "Punch": {
+      "average_distance": 157538.96,
+      "deaths_percentage": 2.64
+    },
+    "S1897": {
+      "average_distance": 14933.78,
+      "deaths_percentage": 4.24
+    },
+    "SCAR-L": {
+      "average_distance": 12940.12,
+      "deaths_percentage": 9.33
+    },
+    "UMP9": {
+      "average_distance": 14421.51,
+      "deaths_percentage": 5.5
+    }
+  }
+}

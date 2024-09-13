@@ -10,7 +10,7 @@ Ejecución
 ---------
 
 ```
-cargo run <input-path> <num-threads> <output-file-name>
+cargo run --release <input-path> <num-threads> <output-file-name>
 ```
 
 por ejemplo
