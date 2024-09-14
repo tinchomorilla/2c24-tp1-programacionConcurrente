@@ -1,71 +1,31 @@
+mod parser;
+mod top_calculator;
 mod weapon_stats;
+mod writer;
+use top_calculator::TopCalculator;
+use weapon_stats::WeaponStats;
+use writer::Writer;
 
+use parser::Parser;
 use rayon::{prelude::*, ThreadPoolBuilder};
-use serde_json::json;
 use std::{
-    cmp::Ordering,
     collections::HashMap,
-    env,
-    fs::{self, File},
-    io::{BufRead, BufReader, Write},
+    fs::File,
+    io::{BufRead, BufReader},
     path::PathBuf,
     time::Instant,
 };
-use weapon_stats::WeaponStats;
+
 type NumberOfDeathsAndDistances = HashMap<String, WeaponStats>;
 type PlayersWeapons = HashMap<String, HashMap<String, i32>>;
 type MappedItem = (NumberOfDeathsAndDistances, PlayersWeapons);
 type ProcessedData = (NumberOfDeathsAndDistances, PlayersWeapons);
 
-const INPUT_PATH_CONSOLE_ARGUMENT: usize = 1;
-const NUMBER_OF_THREADS_CONSOLE_ARGUMENT: usize = 2;
-const OUTPUT_FILE_CONSOLE_ARGUMENT: usize = 3;
-const EXPECTED_ARGS: usize = 4;
 const KILLER_NAME: usize = 1;
 const KILLER_POSITION_X: usize = 3;
 const KILLER_POSITION_Y: usize = 4;
 const VICTIM_POSITION_X: usize = 10;
 const VICTIM_POSITION_Y: usize = 11;
-const TOP_PLAYERS: usize = 10;
-const TOP_WEAPONS: usize = 3;
-
-fn parse_args() -> (String, usize, String) {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != EXPECTED_ARGS {
-        eprintln!("Uso: cargo run <input-path> <num-threads> <output-file-name>");
-        std::process::exit(1);
-    }
-    let input_path = args[INPUT_PATH_CONSOLE_ARGUMENT].clone();
-    let num_threads: usize = args[NUMBER_OF_THREADS_CONSOLE_ARGUMENT]
-        .parse()
-        .expect("El segundo argumento debe ser un entero");
-    let output_file_name = args[OUTPUT_FILE_CONSOLE_ARGUMENT].clone();
-    (input_path, num_threads, output_file_name)
-}
-
-fn get_paths(input_path: &str) -> Vec<PathBuf> {
-    // entries es un iterador de Result<DirEntry, Error>:
-    // - DirEntry es un objeto que representa un directorio en el sistema de archivos
-    let entries = fs::read_dir(input_path).unwrap();
-
-    // flatten() convierte un iterador de iteradores en un iterador simple
-    let valid_entries = entries.flatten();
-
-    // Si tengo File1 y File2 en mi directorio, entonces paths_iter será un iterador de PathBuf
-    // que contiene los paths de File1 y File2
-    // [
-    //     PathBuf::from("input_dir/file1.txt"),
-    //     PathBuf::from("input_dir/file2.txt")
-    // ]
-    let paths_iter = valid_entries.map(|d| d.path());
-
-    // Convertir el iterador en un vector
-    // vec![
-    //     PathBuf::from("input_dir/file1.txt"),
-    //     PathBuf::from("input_dir/file2.txt")
-    // ]
-    paths_iter.collect::<Vec<PathBuf>>()
-}
 
 fn map_lines(
     lines_iter: impl ParallelIterator<Item = Result<String, std::io::Error>>,
@@ -180,153 +140,27 @@ fn process_csvs(paths: &Vec<PathBuf>) -> ProcessedData {
     (weapons, player_kills)
 }
 
-fn calculate_top_weapons(
-    weapons: HashMap<String, WeaponStats>,
-) -> HashMap<String, serde_json::Value> {
-    let mut weapons_vec = weapons.iter().collect::<Vec<_>>();
-    weapons_vec.sort_unstable_by(|a, b| {
-        let count_cmp =
-            b.1.get_total_kills_caused_by_weapon()
-                .cmp(&a.1.get_total_kills_caused_by_weapon()); // Ordenar por conteo en orden descendente
-        if count_cmp == Ordering::Equal {
-            a.0.cmp(b.0) // Si hay empate, ordenar alfabéticamente por el nombre del arma
-        } else {
-            count_cmp
-        }
-    });
-
-    let total_deaths_caused_by_weapons: u32 = weapons
-        .values()
-        .map(|weapon_stats| weapon_stats.get_total_kills_caused_by_weapon())
-        .sum();
-
-    let top_weapons: HashMap<String, serde_json::Value> = weapons_vec
-        .iter()
-        .take(10)
-        .map(|(weapon, weapon_stats)| {
-            let percentage = (weapon_stats.get_total_kills_caused_by_weapon() as f64
-                / total_deaths_caused_by_weapons as f64)
-                * 100.0;
-            let rounded_percentage = (percentage * 100.0).round() / 100.0;
-            let avg_distance = (weapon_stats.get_death_distance()
-                / weapon_stats.get_number_of_kills_with_distance() as f64
-                * 100.0)
-                .round()
-                / 100.0;
-            (
-                (*weapon).clone(),
-                json!({
-                    "average_distance": avg_distance,
-                    "deaths_percentage": rounded_percentage,
-                }),
-            )
-        })
-        .collect();
-
-    top_weapons
-}
-
-fn calculate_top_killers(
-    player_kills: HashMap<String, HashMap<String, i32>>,
-) -> HashMap<String, serde_json::Value> {
-    let mut players_weapons_vec: Vec<(&String, &HashMap<String, i32>)> =
-        player_kills.iter().collect();
-    players_weapons_vec.sort_unstable_by(|a, b| {
-        let sum_a = a.1.values().sum::<i32>();
-        let sum_b = b.1.values().sum::<i32>();
-        let sum_cmp = sum_b.cmp(&sum_a); // Ordenar por suma en orden descendente
-        if sum_cmp == Ordering::Equal {
-            a.0.cmp(b.0) // Si hay empate, ordenar alfabéticamente por el nombre del jugador
-        } else {
-            sum_cmp
-        }
-    });
-
-    let top_10_players: Vec<(&String, &HashMap<String, i32>)> = players_weapons_vec
-        .iter()
-        .take(TOP_PLAYERS)
-        .cloned()
-        .collect();
-
-    let top_killers: HashMap<String, serde_json::Value> = top_10_players
-        .iter()
-        .map(|(player, weapons)| {
-            let total_deaths_caused_by_player: i32 = weapons.values().sum();
-            let mut weapons_vec: Vec<(&String, &i32)> = weapons.iter().collect();
-            weapons_vec.sort_unstable_by(|a, b| {
-                let count_cmp = b.1.cmp(a.1); // Ordenar por conteo en orden descendente
-                if count_cmp == Ordering::Equal {
-                    a.0.cmp(b.0) // Si hay empate, ordenar alfabéticamente por el nombre del arma
-                } else {
-                    count_cmp
-                }
-            });
-            let top_3_weapons = weapons_vec
-                .iter()
-                .take(TOP_WEAPONS)
-                .map(|(weapon, &count)| {
-                    let percentage = (count as f64 / total_deaths_caused_by_player as f64) * 100.0;
-                    let rounded_percentage = (percentage * 100.0).round() / 100.0;
-                    (weapon, rounded_percentage)
-                })
-                .collect::<HashMap<_, _>>();
-            (
-                (*player).clone(),
-                json!({
-                    "deaths": total_deaths_caused_by_player,
-                    "weapons_percentage": top_3_weapons
-                }),
-            )
-        })
-        .collect();
-
-    top_killers
-}
-
-fn calculate_and_sort_results(
-    weapons: HashMap<String, WeaponStats>,
-    player_kills: HashMap<String, HashMap<String, i32>>,
-) -> (
-    HashMap<String, serde_json::Value>,
-    HashMap<String, serde_json::Value>,
-) {
-    let top_killers = calculate_top_killers(player_kills);
-    let top_weapons = calculate_top_weapons(weapons);
-
-    (top_killers, top_weapons)
-}
-
-fn write_results_in_file(
-    output_file_name: &str,
-    top_killers: HashMap<String, serde_json::Value>,
-    top_weapons: HashMap<String, serde_json::Value>,
-) -> std::io::Result<()> {
-    let output = json!({
-        "padron": 108091,
-        "top_killers": top_killers,
-        "top_weapons": top_weapons
-    });
-
-    let mut file = File::create(output_file_name)?;
-    file.write_all(serde_json::to_string_pretty(&output)?.as_bytes())?;
-    Ok(())
-}
-
 fn main() -> std::io::Result<()> {
-    let (input_path, num_threads, output_file_name) = parse_args();
-
+    let parser = Parser::new();
+    let top_calculator = TopCalculator::new();
+    let writer = Writer::new(parser.get_output_file_name());
     let start = Instant::now();
     let pool = ThreadPoolBuilder::new()
-        .num_threads(num_threads)
+        .num_threads(parser.get_num_threads())
         .build()
         .unwrap();
 
     pool.install(|| {
-        let paths = get_paths(&input_path);
+        let paths = parser.get_paths();
         let (weapons, player_kills) = process_csvs(&paths);
         let duration = start.elapsed();
-        let (top_killers, top_weapons) = calculate_and_sort_results(weapons, player_kills);
-        let _ = write_results_in_file(&output_file_name, top_killers, top_weapons);
+        let (top_killers, top_weapons) =
+            top_calculator.calculate_and_sort_results(weapons, player_kills);
+        let write_result = writer.write_results_in_file(top_killers, top_weapons);
+        match write_result {
+            Ok(_) => println!("Archivo escrito correctamente"),
+            Err(e) => eprintln!("Error al escribir el archivo: {}", e),
+        }
         println!("Tiempo total de lectura: {:?}", duration);
     });
 
