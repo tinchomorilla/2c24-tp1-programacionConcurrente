@@ -5,9 +5,7 @@ use std::{
     path::PathBuf,
     time::Instant,
 };
-
 use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
-
 use crate::{
     argument_parser::ArgumentParser, top_calculator::TopCalculator, weapon_stats::WeaponStats,
     writer::Writer,
