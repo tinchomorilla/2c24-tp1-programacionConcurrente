@@ -1,8 +1,0 @@
-# Ignorar la carpeta deaths
-/deaths/
-
-# Ignorar la carpeta target
-/target/
-
-# Ignorar la carpeta .vscode
-/.vscode/

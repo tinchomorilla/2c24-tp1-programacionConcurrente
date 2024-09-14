@@ -8,13 +8,13 @@ use std::process::Command;
 fn test_output_with_expected_json() {
     // Definir el path del archivo JSON esperado
     let expected_file_path =
-        "/home/tincho/Documents/Facultad/Concurrentes/2024-2c-tp1-tinchhoo/tp-fork-join/expected_output.json";
+        "/home/tincho/Documents/Facultad/Concurrentes/2024-2c-tp1-tinchhoo/expected_output.json";
 
     // Definir los argumentos para ejecutar el programa
     let input_path =
-        "/home/tincho/Documents/Facultad/Concurrentes/2024-2c-tp1-tinchhoo/tp-fork-join/deaths";
+        "/home/tincho/Documents/Facultad/Concurrentes/2024-2c-tp1-tinchhoo/deaths";
     let num_threads = "2";
-    let output_file_path = "/home/tincho/Documents/Facultad/Concurrentes/2024-2c-tp1-tinchhoo/tp-fork-join/output.json";
+    let output_file_path = "/home/tincho/Documents/Facultad/Concurrentes/2024-2c-tp1-tinchhoo/output.json";
 
     // Ejecutar el programa para generar el archivo JSON
     let _output = Command::new("cargo")
