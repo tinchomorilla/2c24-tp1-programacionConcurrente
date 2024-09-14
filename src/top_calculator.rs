@@ -14,45 +14,27 @@ impl TopCalculator {
         Self {}
     }
 
-    fn calculate_top_weapons(
+    pub fn calculate_top_weapons(
         &self,
         weapons: HashMap<String, WeaponStats>,
     ) -> HashMap<String, serde_json::Value> {
-        let mut weapons_vec = weapons.iter().collect::<Vec<_>>();
-        weapons_vec.sort_unstable_by(|a, b| {
-            let count_cmp =
-                b.1.get_total_kills_caused_by_weapon()
-                    .cmp(&a.1.get_total_kills_caused_by_weapon()); // Ordenar por conteo en orden descendente
-            if count_cmp == Ordering::Equal {
-                a.0.cmp(b.0) // Si hay empate, ordenar alfabéticamente por el nombre del arma
-            } else {
-                count_cmp
-            }
-        });
+        let weapons_vec = sort_weapons_by_kills(&weapons);
+        let total_deaths_caused_by_weapons = calculate_total_deaths(&weapons);
 
-        let total_deaths_caused_by_weapons: u32 = weapons
-            .values()
-            .map(|weapon_stats| weapon_stats.get_total_kills_caused_by_weapon())
-            .sum();
-
-        let top_weapons: HashMap<String, serde_json::Value> = weapons_vec
+        let top_weapons = weapons_vec
             .iter()
             .take(10)
             .map(|(weapon, weapon_stats)| {
-                let percentage = (weapon_stats.get_total_kills_caused_by_weapon() as f64
-                    / total_deaths_caused_by_weapons as f64)
-                    * 100.0;
-                let rounded_percentage = (percentage * 100.0).round() / 100.0;
-                let avg_distance = (weapon_stats.get_death_distance()
-                    / weapon_stats.get_number_of_kills_with_distance() as f64
-                    * 100.0)
-                    .round()
-                    / 100.0;
+                let percentage = calculate_percentage(
+                    weapon_stats.get_total_kills_caused_by_weapon(),
+                    total_deaths_caused_by_weapons,
+                );
+                let avg_distance = calculate_average_distance(weapon_stats);
                 (
                     (*weapon).clone(),
                     json!({
                         "average_distance": avg_distance,
-                        "deaths_percentage": rounded_percentage,
+                        "deaths_percentage": percentage,
                     }),
                 )
             })
@@ -60,7 +42,6 @@ impl TopCalculator {
 
         top_weapons
     }
-
     fn calculate_top_killers(
         &self,
         player_kills: HashMap<String, HashMap<String, i32>>,
@@ -133,4 +114,39 @@ impl TopCalculator {
 
         (top_killers, top_weapons)
     }
+}
+
+fn sort_weapons_by_kills(weapons: &HashMap<String, WeaponStats>) -> Vec<(&String, &WeaponStats)> {
+    let mut weapons_vec = weapons.iter().collect::<Vec<_>>();
+    weapons_vec.sort_unstable_by(|a, b| {
+        let count_cmp =
+            b.1.get_total_kills_caused_by_weapon()
+                .cmp(&a.1.get_total_kills_caused_by_weapon());
+        if count_cmp == Ordering::Equal {
+            a.0.cmp(b.0)
+        } else {
+            count_cmp
+        }
+    });
+    weapons_vec
+}
+fn calculate_total_deaths(weapons: &HashMap<String, WeaponStats>) -> u32 {
+    weapons
+        .values()
+        .map(|weapon_stats| weapon_stats.get_total_kills_caused_by_weapon())
+        .sum()
+}
+
+fn calculate_percentage(part: u32, total: u32) -> f64 {
+    let percentage = (part as f64 / total as f64) * 100.0;
+    (percentage * 100.0).round() / 100.0
+}
+
+fn calculate_average_distance(weapon_stats: &WeaponStats) -> f64 {
+    let avg_distance = (weapon_stats.get_death_distance()
+        / weapon_stats.get_number_of_kills_with_valid_distance() as f64
+        * 100.0)
+        .round()
+        / 100.0;
+    avg_distance
 }

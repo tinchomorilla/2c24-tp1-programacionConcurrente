@@ -5,13 +5,13 @@ const NUMBER_OF_THREADS_CONSOLE_ARGUMENT: usize = 2;
 const OUTPUT_FILE_CONSOLE_ARGUMENT: usize = 3;
 const EXPECTED_ARGS: usize = 4;
 
-pub struct Parser {
+pub struct ArgumentParser {
     input_path: String,
     num_threads: usize,
     output_file_name: String,
 }
 
-impl Parser {
+impl ArgumentParser {
     pub fn new() -> Self {
         let args: Vec<String> = env::args().collect();
         if args.len() != EXPECTED_ARGS {

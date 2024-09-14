@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WeaponStats {
     death_distance: f64,
     number_of_kills_with_distance: u32,
@@ -22,7 +22,7 @@ impl WeaponStats {
         self.death_distance += death_distance;
     }
 
-    pub fn set_number_of_kills_with_distance(&mut self, number_of_kills: u32) {
+    pub fn set_number_of_kills_with_valid_distance(&mut self, number_of_kills: u32) {
         self.number_of_kills_with_distance += number_of_kills;
     }
 
@@ -34,7 +34,7 @@ impl WeaponStats {
         self.death_distance
     }
 
-    pub fn get_number_of_kills_with_distance(&self) -> u32 {
+    pub fn get_number_of_kills_with_valid_distance(&self) -> u32 {
         self.number_of_kills_with_distance
     }
 
