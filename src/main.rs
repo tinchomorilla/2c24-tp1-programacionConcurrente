@@ -12,7 +12,7 @@ use std::{
     time::Instant,
 };
 use weapon_stats::WeaponStats;
-type NumberOfDeathsAndDistances = HashMap<String, (i32, WeaponStats)>;
+type NumberOfDeathsAndDistances = HashMap<String, WeaponStats>;
 type PlayersWeapons = HashMap<String, HashMap<String, i32>>;
 type MappedItem = (NumberOfDeathsAndDistances, PlayersWeapons);
 type ProcessedData = (NumberOfDeathsAndDistances, PlayersWeapons);
@@ -67,39 +67,6 @@ fn get_paths(input_path: &str) -> Vec<PathBuf> {
     paths_iter.collect::<Vec<PathBuf>>()
 }
 
-fn reduce_mapped_iter(mapped_iter: impl ParallelIterator<Item = MappedItem>) -> MappedItem {
-    mapped_iter.reduce(
-        || (HashMap::new(), HashMap::new()),
-        |(mut acc_number_of_deaths_and_distances, mut acc_players_weapons),
-         (counts, player_kills)| {
-            counts.iter().for_each(|(k, v)| {
-                let (acc_count, acc_weapon_stats) = acc_number_of_deaths_and_distances
-                    .entry(k.to_string())
-                    .or_insert((0, WeaponStats::new(0.0, 0)));
-                *acc_count += v.0;
-                acc_weapon_stats.set_death_distance(
-                    acc_weapon_stats.get_death_distance() + v.1.get_death_distance(),
-                );
-                acc_weapon_stats.set_number_of_kills(
-                    acc_weapon_stats.get_number_of_kills() + v.1.get_number_of_kills(),
-                );
-            });
-
-            player_kills.iter().for_each(|(k, v)| {
-                let player_weapons = acc_players_weapons
-                    .entry(k.to_string())
-                    .or_insert(HashMap::new());
-                v.iter().for_each(|(weapon, count)| {
-                    let player_weapon_count = player_weapons.entry(weapon.to_string()).or_insert(0);
-                    *player_weapon_count += count;
-                });
-            });
-
-            (acc_number_of_deaths_and_distances, acc_players_weapons)
-        },
-    )
-}
-
 fn map_lines(
     lines_iter: impl ParallelIterator<Item = Result<String, std::io::Error>>,
 ) -> impl ParallelIterator<Item = MappedItem> {
@@ -107,9 +74,8 @@ fn map_lines(
         let line = l.unwrap();
         let fields: Vec<&str> = line.split(',').collect();
         let mut player_kills = HashMap::new();
-        let mut weapons_stats = WeaponStats::new(0.0, 0);
-        let mut number_of_deaths_and_distances: HashMap<String, (i32, WeaponStats)> =
-            HashMap::new();
+        let mut weapons_stats = WeaponStats::new(0.0, 0, 0);
+        let mut number_of_deaths_and_distances: HashMap<String, WeaponStats> = HashMap::new();
 
         if let Some(weapon) = fields.first() {
             if let (Some(killer_x), Some(killer_y), Some(victim_x), Some(victim_y)) = (
@@ -129,9 +95,10 @@ fn map_lines(
                 weapons_stats.set_death_distance(
                     ((killer_x - victim_x).powi(2) + (killer_y - victim_y).powi(2)).sqrt(),
                 );
-                weapons_stats.set_number_of_kills(1);
+                weapons_stats.set_number_of_kills_with_distance(1);
             }
-            number_of_deaths_and_distances.insert(weapon.to_string(), (1, weapons_stats));
+            weapons_stats.set_total_kills_caused_by_weapon(1);
+            number_of_deaths_and_distances.insert(weapon.to_string(), weapons_stats);
             if let Some(player) = fields.get(KILLER_NAME) {
                 if player != &"" {
                     let player_weapons = player_kills
@@ -144,6 +111,37 @@ fn map_lines(
 
         (number_of_deaths_and_distances, player_kills)
     })
+}
+
+fn reduce_mapped_iter(mapped_iter: impl ParallelIterator<Item = MappedItem>) -> MappedItem {
+    mapped_iter.reduce(
+        || (HashMap::new(), HashMap::new()),
+        |(mut acc_number_of_deaths_and_distances, mut acc_players_weapons),
+         (counts, player_kills)| {
+            counts.iter().for_each(|(k, v)| {
+                let acc_weapon_stats = acc_number_of_deaths_and_distances
+                    .entry(k.to_string())
+                    .or_insert(WeaponStats::new(0.0, 0, 0));
+                acc_weapon_stats
+                    .set_total_kills_caused_by_weapon(v.get_total_kills_caused_by_weapon());
+                acc_weapon_stats.set_death_distance(v.get_death_distance());
+                acc_weapon_stats
+                    .set_number_of_kills_with_distance(v.get_number_of_kills_with_distance());
+            });
+
+            player_kills.iter().for_each(|(k, v)| {
+                let player_weapons = acc_players_weapons
+                    .entry(k.to_string())
+                    .or_insert(HashMap::new());
+                v.iter().for_each(|(weapon, count)| {
+                    let player_weapon_count = player_weapons.entry(weapon.to_string()).or_insert(0);
+                    *player_weapon_count += count;
+                });
+            });
+
+            (acc_number_of_deaths_and_distances, acc_players_weapons)
+        },
+    )
 }
 
 fn process_csvs(paths: &Vec<PathBuf>) -> ProcessedData {
@@ -183,11 +181,13 @@ fn process_csvs(paths: &Vec<PathBuf>) -> ProcessedData {
 }
 
 fn calculate_top_weapons(
-    weapons: HashMap<String, (i32, WeaponStats)>,
+    weapons: HashMap<String, WeaponStats>,
 ) -> HashMap<String, serde_json::Value> {
     let mut weapons_vec = weapons.iter().collect::<Vec<_>>();
     weapons_vec.sort_unstable_by(|a, b| {
-        let count_cmp = b.1 .0.cmp(&a.1 .0); // Ordenar por conteo en orden descendente
+        let count_cmp =
+            b.1.get_total_kills_caused_by_weapon()
+                .cmp(&a.1.get_total_kills_caused_by_weapon()); // Ordenar por conteo en orden descendente
         if count_cmp == Ordering::Equal {
             a.0.cmp(b.0) // Si hay empate, ordenar alfabéticamente por el nombre del arma
         } else {
@@ -195,16 +195,21 @@ fn calculate_top_weapons(
         }
     });
 
-    let total_deaths_caused_by_weapons: i32 = weapons.values().map(|(count, _)| *count).sum();
+    let total_deaths_caused_by_weapons: u32 = weapons
+        .values()
+        .map(|weapon_stats| weapon_stats.get_total_kills_caused_by_weapon())
+        .sum();
 
     let top_weapons: HashMap<String, serde_json::Value> = weapons_vec
         .iter()
         .take(10)
-        .map(|(weapon, (count, weapon_stats))| {
-            let percentage = (*count as f64 / total_deaths_caused_by_weapons as f64) * 100.0;
+        .map(|(weapon, weapon_stats)| {
+            let percentage = (weapon_stats.get_total_kills_caused_by_weapon() as f64
+                / total_deaths_caused_by_weapons as f64)
+                * 100.0;
             let rounded_percentage = (percentage * 100.0).round() / 100.0;
             let avg_distance = (weapon_stats.get_death_distance()
-                / weapon_stats.get_number_of_kills() as f64
+                / weapon_stats.get_number_of_kills_with_distance() as f64
                 * 100.0)
                 .round()
                 / 100.0;
@@ -279,7 +284,7 @@ fn calculate_top_killers(
 }
 
 fn calculate_and_sort_results(
-    weapons: HashMap<String, (i32, WeaponStats)>,
+    weapons: HashMap<String, WeaponStats>,
     player_kills: HashMap<String, HashMap<String, i32>>,
 ) -> (
     HashMap<String, serde_json::Value>,
