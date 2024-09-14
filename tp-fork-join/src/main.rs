@@ -12,6 +12,10 @@ use std::{
     time::Instant,
 };
 use weapon_stats::WeaponStats;
+type NumberOfDeathsAndDistances = HashMap<String, (i32, WeaponStats)>;
+type PlayersWeapons = HashMap<String, HashMap<String, i32>>;
+type MappedItem = (NumberOfDeathsAndDistances, PlayersWeapons);
+type ProcessedData = (NumberOfDeathsAndDistances, PlayersWeapons);
 
 const INPUT_PATH_CONSOLE_ARGUMENT: usize = 1;
 const NUMBER_OF_THREADS_CONSOLE_ARGUMENT: usize = 2;
@@ -63,17 +67,7 @@ fn get_paths(input_path: &str) -> Vec<PathBuf> {
     paths_iter.collect::<Vec<PathBuf>>()
 }
 
-fn reduce_mapped_iter(
-    mapped_iter: impl ParallelIterator<
-        Item = (
-            HashMap<String, (i32, WeaponStats)>,
-            HashMap<String, HashMap<String, i32>>,
-        ),
-    >,
-) -> (
-    HashMap<String, (i32, WeaponStats)>,
-    HashMap<String, HashMap<String, i32>>,
-) {
+fn reduce_mapped_iter(mapped_iter: impl ParallelIterator<Item = MappedItem>) -> MappedItem {
     mapped_iter.reduce(
         || (HashMap::new(), HashMap::new()),
         |(mut acc_number_of_deaths_and_distances, mut acc_players_weapons),
@@ -108,12 +102,7 @@ fn reduce_mapped_iter(
 
 fn map_lines(
     lines_iter: impl ParallelIterator<Item = Result<String, std::io::Error>>,
-) -> impl ParallelIterator<
-    Item = (
-        HashMap<String, (i32, WeaponStats)>,
-        HashMap<String, HashMap<String, i32>>,
-    ),
-> {
+) -> impl ParallelIterator<Item = MappedItem> {
     lines_iter.map(|l| {
         let line = l.unwrap();
         let fields: Vec<&str> = line.split(',').collect();
@@ -157,12 +146,7 @@ fn map_lines(
     })
 }
 
-fn process_csvs(
-    paths: &Vec<PathBuf>,
-) -> (
-    HashMap<String, (i32, WeaponStats)>,
-    HashMap<String, HashMap<String, i32>>,
-) {
+fn process_csvs(paths: &Vec<PathBuf>) -> ProcessedData {
     // par_paths es un iterador paralelo sobre Vec<PathBuf>:
     // par_iter![
     //     PathBuf::from("input_dir/file1.txt"),
