@@ -1,14 +1,14 @@
+use crate::{
+    argument_parser::ArgumentParser, top_calculator::TopCalculator, weapon_stats::WeaponStats,
+    writer::Writer,
+};
+use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
 use std::{
     collections::HashMap,
     fs::File,
     io::{BufRead, BufReader},
     path::PathBuf,
     time::Instant,
-};
-use rayon::iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
-use crate::{
-    argument_parser::ArgumentParser, top_calculator::TopCalculator, weapon_stats::WeaponStats,
-    writer::Writer,
 };
 
 type NumberOfDeathsAndDistances = HashMap<String, WeaponStats>;
@@ -81,19 +81,52 @@ impl Processor {
         &'a self,
         lines_iter: impl ParallelIterator<Item = Result<String, std::io::Error>> + 'a,
     ) -> impl ParallelIterator<Item = MappedItem> + 'a {
-        lines_iter.map(|l| {
-            let line = l.unwrap();
-            let fields: Vec<&str> = line.split(',').collect();
-            let mut player_kills = HashMap::new();
-            let mut weapons_stats = WeaponStats::new(0.0, 0, 0);
-            let mut weapons: HashMap<String, WeaponStats> = HashMap::new();
+        lines_iter.filter_map(|l| match l {
+            Ok(line) => {
+                let fields: Vec<&str> = line.split(',').collect();
+                let mut player_kills = HashMap::new();
+                let mut weapons_stats = WeaponStats::new(0.0, 0, 0);
+                let mut weapons: HashMap<String, WeaponStats> = HashMap::new();
 
-            self.process_coordinates(&fields, &mut weapons_stats);
-            self.process_weapon(&fields, weapons_stats, &mut weapons);
-            self.process_player(&fields, &mut player_kills);
+                self.process_coordinates(&fields, &mut weapons_stats);
+                self.process_weapon(&fields, weapons_stats, &mut weapons);
+                self.process_player(&fields, &mut player_kills);
 
-            (weapons, player_kills)
+                Some((weapons, player_kills))
+            }
+            Err(e) => {
+                eprintln!("Error al leer la linea: {}", e);
+                None
+            }
         })
+    }
+
+    fn reduce_mapped_iter(
+        &self,
+        mapped_iter: impl ParallelIterator<Item = MappedItem>,
+    ) -> MappedItem {
+        mapped_iter.reduce(
+            || (HashMap::new(), HashMap::new()),
+            |(mut acc_number_of_deaths_and_distances, mut acc_players_weapons),
+             (counts, player_kills)| {
+                self.update_deaths_and_distances(&mut acc_number_of_deaths_and_distances, &counts);
+                self.update_players_weapons(&mut acc_players_weapons, &player_kills);
+                (acc_number_of_deaths_and_distances, acc_players_weapons)
+            },
+        )
+    }
+
+    fn process_csvs(&self, paths: &Vec<PathBuf>) -> ProcessedData {
+        let lines_iter = paths.par_iter().flat_map(|path| {
+            let file = File::open(path).unwrap();
+            let reader = BufReader::new(file);
+            reader.lines().par_bridge()
+        });
+
+        let mapped_iter = self.map_lines(lines_iter);
+        let (weapons, player_kills) = self.reduce_mapped_iter(mapped_iter);
+
+        (weapons, player_kills)
     }
 
     fn update_deaths_and_distances(
@@ -121,41 +154,10 @@ impl Processor {
         player_kills.iter().for_each(|(k, v)| {
             let player_weapons = acc_players_weapons.entry(k.to_string()).or_default();
             v.iter().for_each(|(weapon, count)| {
-                let player_weapon_count = player_weapons.entry(weapon.to_string()).or_insert(0);
+                let player_weapon_count = player_weapons.entry(weapon.to_string()).or_default();
                 *player_weapon_count += count;
             });
         });
-    }
-
-    fn reduce_mapped_iter(
-        &self,
-        mapped_iter: impl ParallelIterator<Item = MappedItem>,
-    ) -> MappedItem {
-        mapped_iter.reduce(
-            || (HashMap::new(), HashMap::new()),
-            |(mut acc_number_of_deaths_and_distances, mut acc_players_weapons),
-             (counts, player_kills)| {
-                self.update_deaths_and_distances(&mut acc_number_of_deaths_and_distances, &counts);
-                self.update_players_weapons(&mut acc_players_weapons, &player_kills);
-                (acc_number_of_deaths_and_distances, acc_players_weapons)
-            },
-        )
-    }
-
-    fn process_csvs(&self, paths: &Vec<PathBuf>) -> ProcessedData {
-        let lines_iter = paths.par_iter().flat_map(|path| {
-            let file = File::open(path).unwrap();
-            let reader = BufReader::new(file);
-            reader.lines().par_bridge()
-        });
-
-        // Aplicar map a cada linea de cada archivo y devolver un iterador que contiene
-        // un hashmap por cada linea
-        let mapped_iter = self.map_lines(lines_iter);
-        //Iterar sobre todos los hashmaps y aplanar toda la informacion en 2 hashmaps que contengan toda la información
-        let (weapons, player_kills) = self.reduce_mapped_iter(mapped_iter);
-
-        (weapons, player_kills)
     }
 
     fn get_duration(&self) -> Instant {
@@ -165,8 +167,7 @@ impl Processor {
     pub fn process_and_write_results(&self, parser: &ArgumentParser) {
         let top_calculator = TopCalculator::new();
         let writer = Writer::new(parser.get_output_file_name());
-        let paths = parser.get_paths();
-        let (weapons, player_kills) = self.process_csvs(&paths);
+        let (weapons, player_kills) = self.process_csvs(&parser.get_paths());
         let duration = self.get_duration().elapsed();
         let (top_killers, top_weapons) =
             top_calculator.calculate_and_sort_results(weapons, player_kills);
