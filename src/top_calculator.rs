@@ -3,14 +3,14 @@ use std::{cmp::Ordering, collections::HashMap};
 use rayon::iter::IntoParallelRefIterator;
 use serde_json::json;
 
-use rayon::iter::ParallelIterator;
 use rayon::iter::IndexedParallelIterator;
-
+use rayon::iter::ParallelIterator;
 
 use crate::weapon_stats::WeaponStats;
 
-const TOP_PLAYERS: usize = 10;
-const TOP_WEAPONS: usize = 3;
+const TOP_PLAYERS_OF_THE_GAME: usize = 10;
+const TOP_WEAPONS_FOR_PLAYER: usize = 3;
+const TOP_WEAPONS_IN_THE_GAME: usize = 10;
 
 pub struct TopCalculator {}
 
@@ -28,7 +28,7 @@ impl TopCalculator {
 
         let top_weapons = weapons_vec
             .par_iter()
-            .take(10)
+            .take(TOP_WEAPONS_IN_THE_GAME)
             .map(|(weapon, weapon_stats)| {
                 let percentage = calculate_percentage(
                     weapon_stats.get_total_kills_caused_by_weapon(),
@@ -69,7 +69,7 @@ impl TopCalculator {
         let players_weapons_vec = sort_players_by_kills(&player_kills);
         let top_10_players: Vec<_> = players_weapons_vec
             .par_iter()
-            .take(TOP_PLAYERS)
+            .take(TOP_PLAYERS_OF_THE_GAME)
             .cloned()
             .collect();
 
@@ -77,8 +77,11 @@ impl TopCalculator {
             .par_iter()
             .map(|(player, weapons)| {
                 let total_deaths_caused_by_player = weapons.values().sum();
-                let top_3_weapons =
-                    calculate_top_weapons_for_player(weapons, total_deaths_caused_by_player);
+                let top_3_weapons = calculate_top_weapons_for_player(
+                    weapons,
+                    total_deaths_caused_by_player,
+                    TOP_WEAPONS_FOR_PLAYER,
+                );
                 (
                     (*player).clone(),
                     json!({
@@ -114,6 +117,7 @@ fn sort_players_by_kills(
 fn calculate_top_weapons_for_player(
     weapons: &HashMap<String, i32>,
     total_deaths_caused_by_player: i32,
+    top: usize,
 ) -> HashMap<String, f64> {
     let mut weapons_vec = weapons.par_iter().collect::<Vec<_>>();
     weapons_vec.sort_unstable_by(|a, b| {
@@ -127,7 +131,7 @@ fn calculate_top_weapons_for_player(
 
     let top_weapons = weapons_vec
         .par_iter()
-        .take(TOP_WEAPONS)
+        .take(top)
         .map(|(weapon, &count)| {
             let percentage = (count as f64 / total_deaths_caused_by_player as f64) * 100.0;
             let rounded_percentage = (percentage * 100.0).round() / 100.0;
@@ -164,10 +168,9 @@ fn calculate_percentage(part: u32, total: u32) -> f64 {
 }
 
 fn calculate_average_distance(weapon_stats: &WeaponStats) -> f64 {
-    let avg_distance = (weapon_stats.get_death_distance()
+    (weapon_stats.get_death_distance()
         / weapon_stats.get_number_of_kills_with_valid_distance() as f64
         * 100.0)
         .round()
-        / 100.0;
-    avg_distance
+        / 100.0
 }

@@ -39,33 +39,30 @@ impl ArgumentParser {
         &self.output_file_name
     }
 
-    pub fn get_paths(&self) -> Vec<PathBuf> {
-        // entries es un iterador de Result<DirEntry, Error>:
-        // DirEntry es un objeto que representa un directorio en el sistema de archivos
-        let entries = match fs::read_dir(self.get_input_path()) {
+    fn read_directory(&self, path: &str) -> fs::ReadDir {
+        match fs::read_dir(path) {
             Ok(entries) => entries,
             Err(e) => {
                 eprintln!("Error al leer el directorio: {}", e);
                 std::process::exit(1);
             }
-        };
+        }
+    }
 
-        // flatten() filtra las entries que pueden ser Err y se queda con las entries validas
+    pub fn get_paths(&self) -> Vec<PathBuf> {
+        // entries es un iterador de Result<DirEntry, Error>:
+        // DirEntry es un objeto que representa un directorio en el sistema de archivos
+        let entries = self.read_directory(self.get_input_path());
+
+        // flatten() filtra las entries que pueden ser Err y se queda con las entries validas,
+        // es decir, las que son Ok
         let valid_entries = entries.flatten();
 
-        // Si tengo File1 y File2 en mi directorio, entonces paths_iter será un iterador de PathBuf
-        // que contiene los paths de File1 y File2
-        // [
-        //     PathBuf::from("input_dir/file1.txt"),
-        //     PathBuf::from("input_dir/file2.txt")
-        // ]
-        let paths_iter = valid_entries.map(|d| d.path());
-
-        // Convertir el iterador en un vector
+        // Convertir el iterador que devuelve map en un vector
         // vec![
         //     PathBuf::from("input_dir/file1.txt"),
         //     PathBuf::from("input_dir/file2.txt")
         // ]
-        paths_iter.collect::<Vec<PathBuf>>()
+        valid_entries.map(|d| d.path()).collect::<Vec<PathBuf>>()
     }
 }
