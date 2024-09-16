@@ -117,11 +117,19 @@ impl Processor {
     }
 
     fn process_csvs(&self, paths: &Vec<PathBuf>) -> ProcessedData {
-        let lines_iter = paths.par_iter().flat_map(|path| {
-            let file = File::open(path).unwrap();
-            let reader = BufReader::new(file);
-            reader.lines().par_bridge()
-        });
+        let lines_iter = paths
+            .par_iter()
+            .filter_map(|path| match File::open(path) {
+                Ok(file) => {
+                    let reader = BufReader::new(file);
+                    Some(reader.lines().par_bridge())
+                }
+                Err(e) => {
+                    eprintln!("Error al abrir el archivo: {}", e);
+                    return None;
+                }
+            })
+            .flat_map(|lines_iter| lines_iter);
 
         let mapped_iter = self.map_lines(lines_iter);
         let (weapons, player_kills) = self.reduce_mapped_iter(mapped_iter);

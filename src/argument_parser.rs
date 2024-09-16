@@ -41,10 +41,16 @@ impl ArgumentParser {
 
     pub fn get_paths(&self) -> Vec<PathBuf> {
         // entries es un iterador de Result<DirEntry, Error>:
-        // - DirEntry es un objeto que representa un directorio en el sistema de archivos
-        let entries = fs::read_dir(self.get_input_path()).unwrap();
+        // DirEntry es un objeto que representa un directorio en el sistema de archivos
+        let entries = match fs::read_dir(self.get_input_path()) {
+            Ok(entries) => entries,
+            Err(e) => {
+                eprintln!("Error al leer el directorio: {}", e);
+                std::process::exit(1);
+            }
+        };
 
-        // flatten() convierte un iterador de iteradores en un iterador simple
+        // flatten() filtra las entries que pueden ser Err y se queda con las entries validas
         let valid_entries = entries.flatten();
 
         // Si tengo File1 y File2 en mi directorio, entonces paths_iter será un iterador de PathBuf

@@ -1,6 +1,11 @@
 use std::{cmp::Ordering, collections::HashMap};
 
+use rayon::iter::IntoParallelRefIterator;
 use serde_json::json;
+
+use rayon::iter::ParallelIterator;
+use rayon::iter::IndexedParallelIterator;
+
 
 use crate::weapon_stats::WeaponStats;
 
@@ -22,7 +27,7 @@ impl TopCalculator {
         let total_deaths_caused_by_weapons = calculate_total_deaths(&weapons);
 
         let top_weapons = weapons_vec
-            .iter()
+            .par_iter()
             .take(10)
             .map(|(weapon, weapon_stats)| {
                 let percentage = calculate_percentage(
@@ -63,13 +68,13 @@ impl TopCalculator {
     ) -> HashMap<String, serde_json::Value> {
         let players_weapons_vec = sort_players_by_kills(&player_kills);
         let top_10_players: Vec<_> = players_weapons_vec
-            .iter()
+            .par_iter()
             .take(TOP_PLAYERS)
             .cloned()
             .collect();
 
         let top_killers = top_10_players
-            .iter()
+            .par_iter()
             .map(|(player, weapons)| {
                 let total_deaths_caused_by_player = weapons.values().sum();
                 let top_3_weapons =
@@ -91,7 +96,8 @@ impl TopCalculator {
 fn sort_players_by_kills(
     player_kills: &HashMap<String, HashMap<String, i32>>,
 ) -> Vec<(&String, &HashMap<String, i32>)> {
-    let mut players_weapons_vec = player_kills.iter().collect::<Vec<_>>();
+    let mut players_weapons_vec: Vec<(&String, &HashMap<String, i32>)> =
+        player_kills.par_iter().collect();
     players_weapons_vec.sort_unstable_by(|a, b| {
         let sum_a = a.1.values().sum::<i32>();
         let sum_b = b.1.values().sum::<i32>();
@@ -109,7 +115,7 @@ fn calculate_top_weapons_for_player(
     weapons: &HashMap<String, i32>,
     total_deaths_caused_by_player: i32,
 ) -> HashMap<String, f64> {
-    let mut weapons_vec = weapons.iter().collect::<Vec<_>>();
+    let mut weapons_vec = weapons.par_iter().collect::<Vec<_>>();
     weapons_vec.sort_unstable_by(|a, b| {
         let count_cmp = b.1.cmp(a.1); // Ordenar por conteo en orden descendente
         if count_cmp == Ordering::Equal {
@@ -120,7 +126,7 @@ fn calculate_top_weapons_for_player(
     });
 
     let top_weapons = weapons_vec
-        .iter()
+        .par_iter()
         .take(TOP_WEAPONS)
         .map(|(weapon, &count)| {
             let percentage = (count as f64 / total_deaths_caused_by_player as f64) * 100.0;
@@ -132,7 +138,7 @@ fn calculate_top_weapons_for_player(
 }
 
 fn sort_weapons_by_kills(weapons: &HashMap<String, WeaponStats>) -> Vec<(&String, &WeaponStats)> {
-    let mut weapons_vec = weapons.iter().collect::<Vec<_>>();
+    let mut weapons_vec = weapons.par_iter().collect::<Vec<_>>();
     weapons_vec.sort_unstable_by(|a, b| {
         let count_cmp =
             b.1.get_total_kills_caused_by_weapon()
