@@ -149,7 +149,7 @@ impl Processor {
     fn process_csvs(&self, paths: &Vec<PathBuf>) -> ProcessedData {
         let lines_iter = paths
             .par_iter()
-            .filter_map(open_file)
+            .filter_map(get_parallel_line_iterator)
             .flat_map(|lines_iter| lines_iter);
 
         let mapped_iter = self.map_lines(lines_iter);
@@ -187,6 +187,7 @@ impl Processor {
         });
     }
 
+    /// Returns the time since the stopwatch started
     fn get_duration(&self) -> Instant {
         self.start
     }
@@ -203,7 +204,7 @@ impl Processor {
     pub fn process_and_write_results(&self, parser: &ArgumentParser) {
         let top_calculator = TopCalculator::new();
         let writer = Writer::new(parser.get_output_file_name());
-        let (weapons, player_kills) = self.process_csvs(&parser.get_paths());
+        let (weapons, player_kills) = self.process_csvs(&parser.get_vec_paths());
         let duration = self.get_duration().elapsed();
         let (top_killers, top_weapons) =
             top_calculator.calculate_and_sort_results(weapons, player_kills);
@@ -215,7 +216,18 @@ impl Processor {
     }
 }
 
-fn open_file(path: &PathBuf) -> Option<IterBridge<Lines<BufReader<File>>>> {
+
+/// Opens a CSV file and verifies that it was opened correctly.
+/// If the file was opened correctly, it returns a parallel iterator over lines from the CSV file.
+/// 
+/// # Arguments
+/// 
+/// * `path` - Path to a CSV file.
+/// 
+/// # Returns
+/// 
+/// Returns a parallel iterator over lines from a CSV file.
+fn get_parallel_line_iterator(path: &PathBuf) -> Option<IterBridge<Lines<BufReader<File>>>> {
     match File::open(path) {
         Ok(file) => {
             let reader = BufReader::new(file);

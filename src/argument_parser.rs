@@ -39,6 +39,16 @@ impl ArgumentParser {
         &self.output_file_name
     }
 
+    /// Open the directory given in the input path
+    /// If the directory cannot be opened, the function exits the program
+    /// 
+    /// # Arguments
+    ///
+    /// * `path` - The path to the directory
+    ///
+    /// # Returns
+    ///
+    /// A ReadDir object that contains the entries of the directory
     fn read_directory(&self, path: &str) -> fs::ReadDir {
         match fs::read_dir(path) {
             Ok(entries) => entries,
@@ -49,7 +59,7 @@ impl ArgumentParser {
         }
     }
 
-    pub fn get_paths(&self) -> Vec<PathBuf> {
+    pub fn get_vec_paths(&self) -> Vec<PathBuf> {
         // entries es un iterador de Result<DirEntry, Error>:
         // DirEntry es un objeto que representa un directorio en el sistema de archivos
         let entries = self.read_directory(self.get_input_path());

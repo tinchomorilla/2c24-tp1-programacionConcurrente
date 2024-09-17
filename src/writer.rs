@@ -17,6 +17,17 @@ impl Writer {
         &self.output_file_name
     }
 
+
+    /// Write the results in the output file
+    /// 
+    /// # Arguments
+    /// 
+    /// * `top_killers` - A HashMap <PlayerName, BestStats in a JSON format>
+    /// * `top_weapons` - A HashMap <WeaponName, BestStats in a JSON format>
+    /// 
+    /// # Returns
+    /// 
+    /// A Result with the result of the operation
     pub fn write_results_in_file(
         &self,
         top_killers: HashMap<String, serde_json::Value>,
