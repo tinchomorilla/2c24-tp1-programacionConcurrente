@@ -15,6 +15,7 @@ type NumberOfDeathsAndDistances = HashMap<String, WeaponStats>;
 type PlayersWeapons = HashMap<String, HashMap<String, i32>>;
 type MappedItem = (NumberOfDeathsAndDistances, PlayersWeapons);
 type ProcessedData = (NumberOfDeathsAndDistances, PlayersWeapons);
+type ReducedItem = (NumberOfDeathsAndDistances, PlayersWeapons);
 
 const KILLER_NAME: usize = 1;
 const KILLER_POSITION_X: usize = 3;
@@ -64,7 +65,17 @@ impl Processor {
             weapons.insert(weapon.to_string(), weapon_stats);
         }
     }
-
+    /// Processes player data.
+    ///
+    /// # Arguments
+    ///
+    /// * `fields` - Vector of fields from a CSV line.
+    ///
+    /// * `player_kills` - HashMap with player kills.
+    ///
+    /// # Returns
+    ///
+    /// Returns a HashMap with player kills.
     fn process_player(&self, fields: &[&str], player_kills: &mut PlayersWeapons) {
         if let Some(player) = fields.get(KILLER_NAME) {
             if player != &"" {
@@ -76,6 +87,13 @@ impl Processor {
         }
     }
 
+    /// Maps lines from a CSV file to processed data.
+    ///
+    /// # Arguments
+    /// * `lines_iter` - Parallel iterator over lines from a CSV file.
+    ///
+    /// # Returns
+    /// Returns a parallel iterator over mapped items.
     fn map_lines<'a>(
         &'a self,
         lines_iter: impl ParallelIterator<Item = Result<String, std::io::Error>> + 'a,
@@ -100,10 +118,17 @@ impl Processor {
         })
     }
 
+    /// Reduces a parallel iterator of mapped items into a single result.
+    ///
+    /// # Arguments
+    /// * `mapped_iter` - Parallel iterator over mapped items.
+    ///
+    /// # Returns
+    /// Returns a single `Reduced` with accumulated statistics.
     fn reduce_mapped_iter(
         &self,
         mapped_iter: impl ParallelIterator<Item = MappedItem>,
-    ) -> MappedItem {
+    ) -> ReducedItem {
         mapped_iter.reduce(
             || (HashMap::new(), HashMap::new()),
             |(mut acc_weapons, mut acc_players_weapons), (weapon, player_kills)| {
@@ -114,6 +139,13 @@ impl Processor {
         )
     }
 
+    /// Processes CSV files and returns processed data.
+    ///
+    /// # Arguments
+    /// * `paths` - Vector of CSV file paths.
+    ///
+    /// # Returns
+    /// Returns `ProcessedData` with weapon and player statistics.
     fn process_csvs(&self, paths: &Vec<PathBuf>) -> ProcessedData {
         let lines_iter = paths
             .par_iter()
@@ -159,6 +191,15 @@ impl Processor {
         self.start
     }
 
+    /// Processes CSV files and writes results to an output file.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `parser` - Argument parser with command line arguments.
+    /// 
+    /// # Returns
+    /// 
+    /// No return value.
     pub fn process_and_write_results(&self, parser: &ArgumentParser) {
         let top_calculator = TopCalculator::new();
         let writer = Writer::new(parser.get_output_file_name());
