@@ -31,7 +31,7 @@ impl Processor {
         Self { start }
     }
 
-    fn process_coordinates(&self, fields: &[&str], weapon_stats: &mut WeaponStats) {
+    fn process_murder_coordinates(&self, fields: &[&str], weapon_stats: &mut WeaponStats) {
         if let (Some(killer_x), Some(killer_y), Some(victim_x), Some(victim_y)) = (
             fields
                 .get(KILLER_POSITION_X)
@@ -87,7 +87,7 @@ impl Processor {
                 let mut weapon_stats = WeaponStats::new(0.0, 0, 0);
                 let mut weapons: HashMap<String, WeaponStats> = HashMap::new();
 
-                self.process_coordinates(&fields, &mut weapon_stats);
+                self.process_murder_coordinates(&fields, &mut weapon_stats);
                 self.process_weapon(&fields, weapon_stats, &mut weapons);
                 self.process_player(&fields, &mut player_kills);
 
@@ -107,8 +107,8 @@ impl Processor {
         mapped_iter.reduce(
             || (HashMap::new(), HashMap::new()),
             |(mut acc_weapons, mut acc_players_weapons), (weapon, player_kills)| {
-                self.update_deaths_and_distances(&mut acc_weapons, &weapon);
-                self.update_players_weapons(&mut acc_players_weapons, &player_kills);
+                self.add_deaths_and_distances(&mut acc_weapons, &weapon);
+                self.add_players_weapons(&mut acc_players_weapons, &player_kills);
                 (acc_weapons, acc_players_weapons)
             },
         )
@@ -124,7 +124,7 @@ impl Processor {
         self.reduce_mapped_iter(mapped_iter)
     }
 
-    fn update_deaths_and_distances(
+    fn add_deaths_and_distances(
         &self,
         acc_weapons: &mut NumberOfDeathsAndDistances,
         current_weapon: &NumberOfDeathsAndDistances,
@@ -141,7 +141,7 @@ impl Processor {
         });
     }
 
-    fn update_players_weapons(
+    fn add_players_weapons(
         &self,
         acc_players_weapons: &mut PlayersWeapons,
         player_kills: &PlayersWeapons,
